@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+    <div id="app">
+        <h1>Hello World {{ quotes.length }}</h1>
+        <input 
+        type="text" 
+        placeholder="Add a quote"
+        v-model="newQuote"
+        @keypress.enter="addQuote">
+        <button @click="showAuthor = !showAuthor">Show Author</button>
+        <!-- <button @click="addQuote">Add Quote</button> -->
+        <hr>
+
+        <ul>
+            <li v-for="({quote, author}, index) in quotes">
+                <span>{{ index + 1 }}. {{ quote }}</span>
+                <blockquote v-if="showAuthor">{{ author }}</blockquote>
+            </li>
+        </ul>
+
+    </div>
+
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script> 
+    <script src="app.js"></script>   
+</body>
+</html>
