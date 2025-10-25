@@ -1,12 +1,13 @@
-import { defineComponent, watch, watchEffect } from 'vue';
+import { defineComponent, ref, watch, watchEffect } from 'vue';
 import { useRouter } from 'vue-router';
-import { useQuery } from '@tanstack/vue-query';
+import { useMutation, useQuery } from '@tanstack/vue-query';
 import { useFieldArray, useForm } from 'vee-validate';
 import * as yup from 'yup';
 
-import { getProductById } from '@/modules/products/actions';
+import { createUpdateProductAction, getProductById } from '@/modules/products/actions';
 import CustomInput from '@/modules/common/components/CustomInput.vue';
 import CustomTextarea from '@/modules/common/components/CustomTextarea.vue';
+import { useToast } from 'vue-toastification';
 
 const validationSchema = yup.object({
   title: yup.string().required().min(3),
@@ -30,15 +31,26 @@ export default defineComponent({
   },
   setup(props) {
     const router = useRouter();
+    const toast = useToast();
 
     const {
       data: product,
       isError,
       isLoading,
+      refetch,
     } = useQuery({
       queryKey: ['product', props.productId],
       queryFn: () => getProductById(props.productId),
       retry: false,
+    });
+
+    const {
+      mutate,
+      isPending,
+      isSuccess: isUpdatedSuccess,
+      data: updatedProduct,
+    } = useMutation({
+      mutationFn: createUpdateProductAction,
     });
 
     const { values, defineField, errors, handleSubmit, resetForm, meta } = useForm({
@@ -55,8 +67,18 @@ export default defineComponent({
     const { fields: imagesField } = useFieldArray<string>('images');
     const { fields: sizes, remove: removeSize, push: pushSize } = useFieldArray<string>('sizes');
 
-    const onSubmit = handleSubmit((value) => {
-      console.log(value);
+    const imageFiles = ref<File[]>([]);
+
+    const onSubmit = handleSubmit(async (values) => {
+      // const product = await CreateUpdateProductAction(value);
+      // console.log({ product });
+
+      const formValues = {
+        ...values,
+        images: [...values.images, ...imageFiles.value],
+      };
+
+      mutate(formValues);
     });
 
     const toggleSize = (size: string) => {
@@ -68,6 +90,20 @@ export default defineComponent({
       } else {
         pushSize(size);
       }
+    };
+
+    const onFileChanged = (event: Event) => {
+      const fileInput = event.target as HTMLInputElement;
+      const files = fileInput.files;
+
+      if (!files) return;
+      if (files.length === 0) return;
+
+      for (const imageFile of files) {
+        imageFiles.value.push(imageFile);
+      }
+
+      console.log(imageFiles.value);
     };
 
     watchEffect(() => {
@@ -88,6 +124,28 @@ export default defineComponent({
       {
         deep: true,
         immediate: true,
+      },
+    );
+
+    watch(isUpdatedSuccess, (value) => {
+      // console.log({ isUpdatedSuccess: isUpdatedSuccess.value });
+      if (!value) return;
+
+      toast.success('Product updated correctly');
+
+      router.replace(`/admin/products/${updatedProduct.value!.id}`);
+
+      resetForm({
+        values: updatedProduct.value,
+      });
+
+      imageFiles.value = [];
+    });
+
+    watch(
+      () => props.productId,
+      () => {
+        refetch();
       },
     );
 
@@ -112,6 +170,9 @@ export default defineComponent({
 
       imagesField,
       sizes,
+      imageFiles,
+
+      isPending,
 
       //Getters
       allSizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
@@ -119,10 +180,15 @@ export default defineComponent({
       //Actions
       onSubmit,
       toggleSize,
+      onFileChanged,
 
       hasSize: (size: string) => {
         const currentSizes = sizes.value.map((s) => s.value);
         return currentSizes.includes(size);
+      },
+
+      temporalImageUrl: (imageFile: File) => {
+        return URL.createObjectURL(imageFile);
       },
     };
   },
